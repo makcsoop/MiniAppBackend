@@ -60,6 +60,21 @@ class ProductResponse(ProductBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProductOut(BaseModel):
+    id: int
+    title: str
+    slug: str
+    description: str | None = None
+    price: float
+    currency: str
+    image_url: str | None = None
+    product_type: str
+    status: str
+    category_id: int | None = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 def _rebuild_product_schemas():
     """Rebuild schemas с явным указанием типов для циклических ссылок"""
     try:

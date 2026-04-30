@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     YANDEX_CALENDAR_ID: str = "default"
     YANDEX_LOGIN: str = ""              # makcsoop@yandex.ru
     YANDEX_APP_PASSWORD: str = ""       # пароль приложения из Яндекс.Паспорта
+    YOOKASSA_SHOP_ID: str = ""    
+    YOOKASSA_SECRET_KEY: str = ""    
+    YOOKASSA_WEBHOOK_SECRET: str = ""    # Сгенерировать в разделе "Webhooks"
+    YOOKASSA_RETURN_URL: str = ""    
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parent.parent / ".env",

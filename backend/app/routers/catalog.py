@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from app.dependencies import get_db_session, get_current_user, get_catalog_service
-from app.models.product import ProductType, ProductStatus
+from app.models.product import ProductType, ProductStatus, Product
 from app.models.user import User, UserRole
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from sqlalchemy import select
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, ProductOut
 from app.schemas.category import CategoryResponse, CategoryCreate, CategoryUpdate
 from app.services.catalog import CatalogService
 
@@ -47,6 +48,20 @@ async def list_products(
         "has_next": skip + limit < total
     }
 
+@router.get("/allproducts", response_model=list[ProductOut])
+async def get_all_products(
+    db: AsyncSession = Depends(get_db_session),
+    only_active: bool = Query(True, description="Показывать только активные товары")
+):
+    """Возвращает ВСЕ продукты (опционально только активные)"""
+    stmt = select(Product)
+    if only_active:
+        stmt = stmt.where(Product.status == ProductStatus.ACTIVE)
+    stmt = stmt.order_by(Product.sort_order, Product.title)
+    
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
 @router.get("/products/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: int,
@@ -57,6 +72,8 @@ async def get_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
+
 
 # === Админские эндпоинты (только для role=admin) ===
 

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import settings
-from app.routers import auth, catalog, booking
+from app.routers import auth, catalog, booking, payment
 from app.services.yandex_calendar import YandexCalendarService
 
 from app.utils.cache import cache
@@ -54,6 +54,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(catalog.router)
 app.include_router(booking.router)
+app.include_router(payment.router)
 
 @app.get("/health")
 async def health_check():

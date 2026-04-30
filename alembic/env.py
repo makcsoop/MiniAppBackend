@@ -1,8 +1,16 @@
+import sys
+from pathlib import Path
+
+# 👇 Добавляем папку backend/ в пути поиска, чтобы alembic видел app.models
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+
+
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.models import Base
 from app.config import settings
+
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
