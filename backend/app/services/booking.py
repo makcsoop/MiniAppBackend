@@ -3,6 +3,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple
 from datetime import datetime, timedelta
+import asyncio
 from app.models.booking import Booking, BookingStatus
 from app.models.product import Product
 from app.utils.time_slots import generate_available_slots, check_slot_availability
@@ -12,6 +13,9 @@ class BookingService:
     def __init__(self, db: AsyncSession, calendar_service: Optional[YandexCalendarService] = None):
         self.db = db
         self.calendar = calendar_service
+
+
+    # app/services/booking.py
 
     async def get_available_slots(
         self,
@@ -23,12 +27,28 @@ class BookingService:
         buffer_minutes: int = 15
     ) -> List[datetime]:
         """Получить список доступных слотов для бронирования"""
-        # 1. Получаем длительность услуги из продукта (если указан)
-        duration = slot_duration_minutes
+        import pytz
+        
+        # 👇 ГАРАНТИРОВАННО определяем duration в начале метода
+        duration: int = slot_duration_minutes if slot_duration_minutes else 60
+        
+        # 1. Если указан product_id — пробуем получить длительность из продукта
         if product_id:
             product = await self.db.get(Product, product_id)
-            if product and hasattr(product, 'duration_minutes'):
-                duration = product.duration_minutes or duration
+            if product and hasattr(product, 'duration_minutes') and product.duration_minutes:
+                duration = product.duration_minutes
+        
+        # 👇 Конвертация дат: любая входящая дата → наивная в нужном таймзоне
+        tz = pytz.timezone(timezone_str)
+        
+        def to_naive_local(dt: datetime) -> datetime:
+            """Приводит datetime к наивному в указанном таймзоне"""
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(tz).replace(tzinfo=None)
+            return dt
+        
+        start_date = to_naive_local(start_date)
+        end_date = to_naive_local(end_date)
         
         # 2. Получаем занятые слоты из БД
         booked = await self._get_booked_intervals(
@@ -38,12 +58,12 @@ class BookingService:
             exclude_statuses=[BookingStatus.CANCELLED]
         )
         
-        # 3. Если подключен Яндекс.Календарь — добавляем события оттуда
+        # 3. Если подключен Яндекс.Календарь — добавляем события
         if self.calendar:
-            calendar_booked = self.calendar.get_busy_intervals(
-                start_date=start_date,
-                end_date=end_date,
-                timezone=timezone_str
+            calendar_booked = await asyncio.to_thread(
+                self.calendar.get_busy_intervals,
+                start_date,
+                end_date
             )
             booked.extend(calendar_booked)
         
@@ -51,7 +71,7 @@ class BookingService:
         return generate_available_slots(
             start_date=start_date,
             end_date=end_date,
-            slot_duration_minutes=duration,
+            slot_duration_minutes=duration,  # 👈 Теперь точно определена
             booked_slots=booked,
             timezone_str=timezone_str,
             buffer_minutes=buffer_minutes
@@ -101,9 +121,7 @@ class BookingService:
         if not check_slot_availability(start_time, end_time, booked):
             raise ValueError("Selected time slot is not available")
         
-        # app/services/booking.py — исправленный конец create_booking()
-
-        # 1. Создаём бронь в БД
+        # 2. Создаём бронь в БД
         booking = Booking(
             user_id=user_id,
             product_id=product_id,
@@ -116,12 +134,12 @@ class BookingService:
             status=BookingStatus.PENDING
         )
         self.db.add(booking)
-        # Не делаем commit здесь!
-
-        # 2. Если подключен календарь — создаём событие
+        
+        # 3. Если подключен календарь — создаём событие (синхронный вызов)
         if self.calendar:
             try:
-                event_id = self.calendar.create_event(
+                event_id = await asyncio.to_thread(
+                    self.calendar.create_event,
                     title=f"Бронь #{booking.id} — {client_name or 'Клиент'}",
                     start=start_time,
                     end=end_time,
@@ -129,16 +147,12 @@ class BookingService:
                     location="СинтезКар"
                 )
                 if event_id:
-                    booking.yandex_event_id = event_id  # 👈 Просто присваиваем, без commit
+                    booking.yandex_event_id = event_id
             except Exception as e:
                 print(f"⚠️ Calendar error (не блокируем бронь): {e}")
-                # Не прерываем создание брони, если календарь упал
-
-        # 3. ОДИН коммит в конце — сохраняем всё сразу
+        
+        # 4. ОДИН коммит в конце
         await self.db.commit()
-
-        # 4. Возвращаем объект БЕЗ повторного refresh()
-        # (у него уже есть id от SQLAlchemy, даже без refresh)
         return booking
 
     async def confirm_booking(self, booking_id: int) -> Optional[Booking]:
@@ -149,17 +163,20 @@ class BookingService:
         
         booking.status = BookingStatus.CONFIRMED
         
-        # Создаём событие в календаре при подтверждении
         if self.calendar:
-            event_id = self.calendar.create_event(
-                title=f"Бронь #{booking.id} — {booking.client_name or 'Клиент'}",
-                start=booking.start_time,
-                end=booking.end_time,
-                description=booking.notes or "",
-                location="СинтезКар"
-            )
-            if event_id:
-                booking.yandex_event_id = event_id
+            try:
+                event_id = await asyncio.to_thread(
+                    self.calendar.create_event,
+                    title=f"Бронь #{booking.id} — {booking.client_name or 'Клиент'}",
+                    start=booking.start_time,
+                    end=booking.end_time,
+                    description=booking.notes or "",
+                    location="СинтезКар"
+                )
+                if event_id:
+                    booking.yandex_event_id = event_id
+            except Exception as e:
+                print(f"⚠️ Calendar error при подтверждении: {e}")
         
         await self.db.commit()
         await self.db.refresh(booking)
@@ -175,9 +192,11 @@ class BookingService:
         if reason:
             booking.notes = f"{booking.notes or ''}\n[Отмена: {reason}]"
         
-        # Если есть событие в Яндекс.Календаре — удаляем его
         if self.calendar and booking.yandex_event_id:
-            self.calendar.delete_event(booking.yandex_event_id)
+            try:
+                await asyncio.to_thread(self.calendar.delete_event, booking.yandex_event_id)
+            except Exception as e:
+                print(f"⚠️ Calendar error при отмене: {e}")
         
         await self.db.commit()
         return True
@@ -206,17 +225,19 @@ class BookingService:
         if not check_slot_availability(new_start, new_end, booked):
             raise ValueError("New time slot is not available")
         
-        # Обновляем в БД
         booking.start_time = new_start
         booking.end_time = new_end
         
-        # Обновляем в календаре
         if self.calendar and booking.yandex_event_id:
-            self.calendar.update_event(
-                event_id=booking.yandex_event_id,
-                start=new_start,
-                end=new_end
-            )
+            try:
+                await asyncio.to_thread(
+                    self.calendar.update_event,
+                    event_id=booking.yandex_event_id,
+                    start=new_start,
+                    end=new_end
+                )
+            except Exception as e:
+                print(f"⚠️ Calendar error при переносе: {e}")
         
         await self.db.commit()
         await self.db.refresh(booking)

@@ -1,4 +1,3 @@
-# Dockerfile (в корне ~/MiniAppBackend/)
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -8,26 +7,31 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Системные зависимости
+# === ШАГ 1: Системные зависимости ===
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 👇 Копируем requirements.txt ИЗ КОРНЯ (не из backend/)
+# === ШАГ 2: Python-зависимости (КЭШИРУЕТСЯ!) ===
+# 👇 Копируем ТОЛЬКО requirements.txt
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
+# 👇 Устанавливаем пакеты
+# Этот слой будет пересобираться ТОЛЬКО если изменится requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# === ШАГ 3: Исходный код (меняется часто) ===
+# 👇 Копируем код ПОСЛЕ установки зависимостей
+# Если вы поменяете код в app/ или bot/, слой с pip install НЕ пересоберётся!
 COPY backend/alembic.ini ./alembic.ini
 COPY backend/alembic ./alembic
-
-COPY backend/seed.py ./seed.py 
-
-# 👇 Копируем ТОЛЬКО исходный код из backend/
+COPY backend/seed.py ./seed.py
 COPY backend/app ./app
 COPY backend/bot ./bot
 COPY backend/tests ./tests
 
-# Скрипт запуска (из корня)
+# === ШАГ 4: Скрипт запуска ===
 COPY docker-entrypoint.sh .
 RUN chmod +x docker-entrypoint.sh
 
