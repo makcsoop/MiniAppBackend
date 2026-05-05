@@ -29,7 +29,7 @@ COPY backend/alembic ./alembic
 COPY backend/seed.py ./seed.py
 COPY backend/app ./app
 COPY backend/bot ./bot
-COPY backend/tests ./tests
+# COPY backend/tests ./tests
 
 # === ШАГ 4: Скрипт запуска ===
 COPY docker-entrypoint.sh .
