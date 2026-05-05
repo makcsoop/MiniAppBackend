@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, DateTime, Enum, func
+from sqlalchemy import String, Integer, DateTime, Enum, func, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 import enum
@@ -6,8 +6,8 @@ from typing import Optional  # 👈 Добавьте этот импорт
 from app.models import Base
 
 class UserRole(str, enum.Enum):
-    USER = "user"
-    ADMIN = "admin"
+    USER = "USER"
+    ADMIN = "ADMIN"
 
 class User(Base):
     __tablename__ = "users"
@@ -22,6 +22,9 @@ class User(Base):
     
     is_premium: Mapped[bool] = mapped_column(default=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    blocked_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    blocked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     last_seen: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

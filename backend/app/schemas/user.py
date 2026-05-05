@@ -12,6 +12,9 @@ class UserResponse(BaseModel):
     language_code: Optional[str] = None
     is_premium: bool
     role: UserRole
+    is_blocked: bool = False
+    blocked_reason: Optional[str] = None
+    blocked_at: Optional[datetime] = None
     created_at: datetime
     last_seen: datetime
 

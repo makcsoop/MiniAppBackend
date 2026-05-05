@@ -2,41 +2,25 @@
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
-from bot.keyboards.main_menu import get_main_menu
-from bot.config import settings
 from bot.database import AsyncSessionLocal
-from bot.models import User
-from sqlalchemy import select
+from bot.handlers.common import ADMIN_MENU_TEXT, admin_main_menu, ensure_admin
 
 router = Router()
 
-async def is_admin(user_id: int) -> bool:
-    """Проверка: админ ли пользователь"""
-    if user_id in settings.admin_ids_list:
-        return True
-    async with AsyncSessionLocal() as db:
-        stmt = select(User).where(User.telegram_id == user_id)
-        result = await db.execute(stmt)
-        user = result.scalars().first()
-        return user and user.role == "ADMIN"
-
 @router.message(CommandStart())
 async def cmd_start(msg: Message):
-    if not await is_admin(msg.from_user.id):
-        await msg.answer("❌ Доступ запрещен. Только для администраторов.")
-        return
-    await msg.answer(
-        f"👋 Привет, {msg.from_user.first_name}!\n\n"
-        "🛠️ **Админ-панель СинтезКар**\nВыберите раздел:",
-        reply_markup=get_main_menu(),
-        parse_mode="Markdown"
-    )
+    async with AsyncSessionLocal() as db:
+        if not await ensure_admin(msg.from_user.id, db):
+            await msg.answer("❌ Доступ запрещен. Только для администраторов.")
+            return
+    await msg.answer(ADMIN_MENU_TEXT, reply_markup=admin_main_menu())
 
-@router.callback_query(F.data == "admin:menu" | F.data == "admin:refresh")
+
+@router.callback_query(F.data.in_(["admin:menu", "admin:refresh"]))
 async def show_menu(cb: CallbackQuery):
-    await cb.message.edit_text(
-        "🛠️ **Админ-панель СинтезКар**\nВыберите раздел:",
-        reply_markup=get_main_menu(),
-        parse_mode="Markdown"
-    )
+    async with AsyncSessionLocal() as db:
+        if not await ensure_admin(cb.from_user.id, db):
+            await cb.answer("❌ Недостаточно прав", show_alert=True)
+            return
+    await cb.message.edit_text(ADMIN_MENU_TEXT, reply_markup=admin_main_menu())
     await cb.answer()

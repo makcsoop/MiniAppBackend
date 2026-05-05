@@ -58,6 +58,11 @@ async def get_current_user(
     
     await db.commit()
     await db.refresh(user)
+    if getattr(user, "is_blocked", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is blocked",
+        )
     return user
 
 def get_catalog_service(db: AsyncSession = Depends(get_db_session)) -> CatalogService:
