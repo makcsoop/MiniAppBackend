@@ -1,101 +1,130 @@
-# generate_test_init_data.py
+# generate_test_init_data.py — ПОЛНОСТЬЮ АВТОНОМНАЯ ВЕРСИЯ
+#!/usr/bin/env python3
+"""
+Генератор initData для тестирования по Telegram ID.
+Не требует импортов из проекта — работает автономно.
+Использование: python generate_test_init_data.py <telegram_id> [username]
+"""
+
+import sys
+import os
 import hmac
 import hashlib
 import time
 import json
 import urllib.parse
-from app.config import settings
+from pathlib import Path
 
-def generate_test_init_data(bot_token: str, user_id: int, username: str = "test_user", first_name: str = "Test") -> str:
-    """
-    Генерирует валидный initData для тестирования, строго по спецификации Telegram:
-    https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-    """
-    # 1. Формируем JSON пользователя ТОЛЬКО с полями, которые реально шлёт Telegram
+
+def load_env_token(env_path: str = ".env") -> str:
+    """Читает TELEGRAM_BOT_TOKEN из .env файла без сторонних библиотек"""
+    env_file = Path(env_path)
+    if not env_file.exists():
+        return ""
+    
+    with open(env_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                if key.strip() == "TELEGRAM_BOT_TOKEN":
+                    return value.strip().strip('"').strip("'")
+    return ""
+
+
+def generate_init_data_by_id(
+    bot_token: str,
+    telegram_id: int,
+    username: str = None,
+    first_name: str = None
+) -> str:
+    """Генерирует валидный initData строго по спецификации Telegram"""
+    
+    # 1. Формируем user JSON
     user_obj = {
-        "id": user_id,
-        "first_name": first_name,
-        "username": username,
-        "language_code": "ru",
-        # "is_premium": True,  # опционально, только если пользователь премиум
-        # "photo_url": "...",  # опционально
-        # "allows_write_to_pm": True,  # опционально
+        "id": telegram_id,
+        "first_name": first_name or f"User{telegram_id}",
     }
     
-    # Важно: json.dumps с separators=(',', ':') и ensure_ascii=False
+    if username:
+        user_obj["username"] = username
+    else:
+        user_obj["username"] = f"user_{telegram_id}"
+    
+    user_obj["language_code"] = "ru"
+    user_obj["allows_write_to_pm"] = True
+    
     user_json = json.dumps(user_obj, separators=(',', ':'), ensure_ascii=False)
     
-    # 2. Собираем данные для проверки (сырые значения, НЕ закодированные)
+    # 2. Параметры для подписи
     auth_date = str(int(time.time()))
-    query_id = f"test_{user_id}_{int(time.time())}"
+    query_id = f"test_{telegram_id}_{auth_date}"
     
-    # Данные для подписи (ключи будут отсортированы)
-    data_dict = {
-        "user": user_json,      # ← сырой JSON, без urllib.parse.quote!
+    params = {
+        "user": user_json,
         "auth_date": auth_date,
         "query_id": query_id,
     }
     
-    # 3. Формируем data_check_string: сортировка по ключам + \n между парами
+    # 3. data_check_string
     data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(data_dict.items())
+        f"{key}={value}" for key, value in sorted(params.items())
     )
     
-    # 4. Вычисляем секретный ключ: HMAC-SHA256("WebAppData", bot_token)
-    # 👆 ВАЖНО: "WebAppData", а не "WebApp"!
+    # 4. Секретный ключ: HMAC-SHA256("WebAppData", bot_token)
     secret_key = hmac.new(
-        b"WebAppData", 
-        bot_token.encode('utf-8'), 
+        b"WebAppData",
+        bot_token.encode('utf-8'),
         hashlib.sha256
     ).digest()
     
-    # 5. Вычисляем хеш данных
+    # 5. Хеш
     computed_hash = hmac.new(
-        secret_key, 
-        data_check_string.encode('utf-8'), 
+        secret_key,
+        data_check_string.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
     
-    # 6. Формируем финальную строку initData (теперь кодируем значения!)
+    # 6. Финальная строка
     init_data_parts = []
-    for k, v in sorted(data_dict.items()):
-        # Кодируем значение, но safe='' чтобы кодировать ВСЁ, включая / и :
-        init_data_parts.append(f"{k}={urllib.parse.quote(v, safe='')}")
+    for key, value in sorted(params.items()):
+        init_data_parts.append(f"{key}={urllib.parse.quote(value, safe='')}")
     
-    # Добавляем hash в конце (также отсортированный по ключу)
     init_data_parts.append(f"hash={computed_hash}")
     
     return "&".join(init_data_parts)
 
 
-if __name__ == "__main__":
-    # Проверка: токен должен быть в .env или передан явно
-    token = settings.TELEGRAM_BOT_TOKEN
-    if not token or token == "123456789:AAF...":
+def main():
+    if len(sys.argv) < 2:
+        print("❌ Использование: python generate_test_init_data.py <telegram_id> [username]")
+        print("Пример: python generate_test_init_data.py 123456789 my_username")
+        sys.exit(1)
+    
+    telegram_id = int(sys.argv[1])
+    username = sys.argv[2] if len(sys.argv) > 2 else None
+    
+    # Читаем токен из .env без импортов
+    bot_token = load_env_token()
+    
+    if not bot_token or "123456789:AAF" in bot_token:
         print("❌ TELEGRAM_BOT_TOKEN не найден в .env или имеет значение по умолчанию")
         print("💡 Заполните .env реальным токеном от @BotFather")
-        exit(1)
+        sys.exit(1)
     
-    # Генерируем initData для тестового пользователя
-    result = generate_test_init_data(token, 123456789, "demo_user", "Demo")
+    init_data = generate_init_data_by_id(bot_token, telegram_id, username)
     
-    print("✅ Сгенерирован initData для тестирования:")
-    print("-" * 80)
-    print(result)
-    print("-" * 80)
+    print(f"\n✅ initData для Telegram ID {telegram_id}:")
+    print("=" * 80)
+    print(init_data)
+    print("=" * 80)
     
-    # Быстрая самопроверка (опционально)
-    try:
-        from app.utils.telegram_validator import validate_telegram_init_data
-        parsed = validate_telegram_init_data(result, token)
-        print(f"✅ Самопроверка прошла!")
-        print(f"   User: {parsed.get('user')}")
-        print(f"   Telegram ID: {parsed.get('telegram_id')}")
-    except ImportError:
-        print("⚠️  Модуль валидации не найден, пропущена самопроверка")
-    except Exception as e:
-        print(f"❌ Самопроверка не прошла: {e}")
-        print("\n💡 Убедитесь, что:")
-        print("   1. TELEGRAM_BOT_TOKEN в .env совпадает с токеном в скрипте")
-        print("   2. Валидатор использует b'WebAppData' как префикс ключа")
-        print("   3. data_check_string формируется с сортировкой ключей и \\n между парами")
+    print(f"\n📋 Пример curl-запроса:")
+    print(f"curl -X POST http://localhost:8000/auth/verify \\")
+    print(f"  -H 'X-Telegram-Init-Data: \"{init_data}\"' \\")
+    print(f"  -H 'Content-Type: application/json' \\")
+    print(f"  -d '{{}}'")
+
+
+if __name__ == "__main__":
+    main()

@@ -27,6 +27,8 @@ RUN pip install --upgrade pip && \
 COPY backend/alembic.ini ./alembic.ini
 COPY backend/alembic ./alembic
 COPY backend/seed.py ./seed.py
+COPY products.json ./products.json
+COPY products.json /app/products.json
 COPY backend/app ./app
 COPY backend/bot ./bot
 # COPY backend/tests ./tests
