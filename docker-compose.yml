@@ -16,6 +16,8 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -39,6 +41,8 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - app-network
 
   redis:
     image: redis:7-alpine
@@ -53,6 +57,12 @@ services:
       timeout: 3s
       retries: 3
     restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   pg_data:
