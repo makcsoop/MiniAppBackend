@@ -1,0 +1,145 @@
+{
+    "info": {
+      "name": "MiniAppBackend API",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+      {
+        "name": "🔐 Авторизация",
+        "item": [
+          {
+            "name": "Verify Telegram initData",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "X-Telegram-Init-Data", "value": "{{init_data}}" }
+              ],
+              "url": { "raw": "{{base_url}}/auth/verify", "host": ["{{base_url}}"], "path": ["auth", "verify"] },
+              "body": { "mode": "raw", "raw": "{}" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "🛍️ Каталог",
+        "item": [
+          {
+            "name": "Get all categories",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/catalog/categories?only_active=true", "host": ["{{base_url}}"], "path": ["catalog", "categories"], "query": [{ "key": "only_active", "value": "true" }] }
+            }
+          },
+          {
+            "name": "Get all products",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/catalog/products?limit=20&skip=0", "host": ["{{base_url}}"], "path": ["catalog", "products"], "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "skip", "value": "0" },
+                { "key": "category", "value": "wrapping", "disabled": true }
+              ]}
+            }
+          },
+          {
+            "name": "Get product by ID",
+            "request": {
+              "method": "GET",
+              "url": { "raw": "{{base_url}}/catalog/products/1", "host": ["{{base_url}}"], "path": ["catalog", "products", "1"] }
+            }
+          }
+        ]
+      },
+      {
+        "name": "📅 Бронирование",
+        "item": [
+          {
+            "name": "Get available slots",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "X-Telegram-Init-Data", "value": "{{init_data}}" }],
+              "url": { "raw": "{{base_url}}/booking/slots?product_id=1&start_date=2026-05-10T10:00:00+03:00&end_date=2026-05-10T18:00:00+03:00&slot_duration=60", "host": ["{{base_url}}"], "path": ["booking", "slots"], "query": [
+                { "key": "product_id", "value": "1" },
+                { "key": "start_date", "value": "2026-05-10T10:00:00+03:00" },
+                { "key": "end_date", "value": "2026-05-10T18:00:00+03:00" },
+                { "key": "slot_duration", "value": "60" }
+              ]}
+            }
+          },
+          {
+            "name": "Create booking",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "X-Telegram-Init-Data", "value": "{{init_data}}" }
+              ],
+              "url": { "raw": "{{base_url}}/booking/", "host": ["{{base_url}}"], "path": ["booking"] },
+              "body": { "mode": "raw", "raw": "{\"product_id\":1,\"start_time\":\"2026-05-10T14:00:00+03:00\",\"end_time\":\"2026-05-10T15:00:00+03:00\",\"client_name\":\"Тест\",\"client_phone\":\"+79991234567\"}" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "💳 Оплата (ЮKassa)",
+        "item": [
+          {
+            "name": "Create payment",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "X-Telegram-Init-Data", "value": "{{init_data}}" }
+              ],
+              "url": { "raw": "{{base_url}}/payments/create", "host": ["{{base_url}}"], "path": ["payments", "create"] },
+              "body": { "mode": "raw", "raw": "{\"booking_id\":1,\"amount\":2500.00,\"method\":\"sbp\"}" }
+            }
+          },
+          {
+            "name": "YooKassa Webhook (тест)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Content-HMAC-SHA256", "value": "{{webhook_signature}}" }
+              ],
+              "url": { "raw": "{{base_url}}/payments/webhook", "host": ["{{base_url}}"], "path": ["payments", "webhook"] },
+              "body": { "mode": "raw", "raw": "{\"event\":\"payment.succeeded\",\"object\":{\"id\":\"2d3d...\",\"status\":\"succeeded\",\"amount\":{\"value\":\"2500.00\",\"currency\":\"RUB\"}}}" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "🔧 Админка",
+        "item": [
+          {
+            "name": "List users",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "X-Telegram-Init-Data", "value": "{{admin_init_data}}" }],
+              "url": { "raw": "{{base_url}}/admin/users?limit=20", "host": ["{{base_url}}"], "path": ["admin", "users"], "query": [{ "key": "limit", "value": "20" }] }
+            }
+          },
+          {
+            "name": "Create product (admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "X-Telegram-Init-Data", "value": "{{admin_init_data}}" }
+              ],
+              "url": { "raw": "{{base_url}}/catalog/admin/products", "host": ["{{base_url}}"], "path": ["catalog", "admin", "products"] },
+              "body": { "mode": "raw", "raw": "{\"title\":\"Тестовый продукт\",\"slug\":\"test-product\",\"price\":1000,\"category_id\":1}" }
+            }
+          }
+        ]
+      }
+    ],
+    "variable": [
+      { "key": "base_url", "value": "http://95.85.253.86:8000" },
+      { "key": "init_data", "value": "auth_date=1778139238&query_id=test_398025952_1778139238&user=%7B%22id%22%3A398025952%2C%22first_name%22%3A%22User398025952%22%2C%22username%22%3A%22user_398025952%22%2C%22language_code%22%3A%22ru%22%2C%22allows_write_to_pm%22%3Atrue%7D&hash=37ec9ba1aa930c20f8536754e77081937404e1c1a84d679918c810dcabb13fff" },
+      { "key": "admin_init_data", "value": "auth_date=1778139213&query_id=test_1864568706_1778139213&user=%7B%22id%22%3A1864568706%2C%22first_name%22%3A%22User1864568706%22%2C%22username%22%3A%22user_1864568706%22%2C%22language_code%22%3A%22ru%22%2C%22allows_write_to_pm%22%3Atrue%7D&hash=7e46cfaa954a892814f4d39cc93c26e79f041f5831db1e6819d8a63094ba1750" },
+      { "key": "webhook_signature", "value": "" }
+    ]
+  }

@@ -3,8 +3,7 @@ from sqlalchemy import String, Integer, Float, Enum, DateTime, ForeignKey, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
 import enum
-
-class Base(DeclarativeBase): pass
+from app.models import Base
 
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
