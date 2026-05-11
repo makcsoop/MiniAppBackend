@@ -1,8 +1,8 @@
-"""initial schema
+"""full_schema
 
-Revision ID: 487d8b29f88c
+Revision ID: fe47b3289148
 Revises: 
-Create Date: 2026-05-08 18:19:11.586766
+Create Date: 2026-05-11 17:38:56.853193
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '487d8b29f88c'
+revision: str = 'fe47b3289148'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -49,6 +49,7 @@ def upgrade() -> None:
     sa.Column('is_blocked', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('blocked_reason', sa.Text(), nullable=True),
     sa.Column('blocked_at', sa.DateTime(), nullable=True),
+    sa.Column('phone_number', sa.String(length=32), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('last_seen', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
