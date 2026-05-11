@@ -10,6 +10,8 @@ class BotSettings(BaseSettings):
     # Опциональные поля
     ADMIN_IDS: str = ""  # Telegram ID через запятую
     LOG_LEVEL: str = "INFO"
+    # Ссылка на Mini App (t.me/bot/app?startapp=...) — для текста приветствия пользователям
+    MINI_APP_URL: str = ""
 
     @property
     def admin_ids_list(self) -> List[int]:

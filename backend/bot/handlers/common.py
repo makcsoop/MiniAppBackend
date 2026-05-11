@@ -16,10 +16,56 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import settings
-from bot.models import User
+from bot.models import User, UserRole
 
 ADMIN_MENU_TEXT = "🛠️ Админ-панель MiniApp\nВыберите раздел:"
 PAGE_SIZE = 10
+
+PHONE_RE = re.compile(r"^\+?[0-9\s\-()]{10,20}$")
+
+
+def request_contact_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📱 Поделиться номером", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder="Нажмите кнопку или введите номер вручную",
+    )
+
+
+async def upsert_user_from_telegram(db: AsyncSession, tg_user) -> User:
+    """Создаёт или обновляет пользователя по данным Telegram (для бота и Mini App)."""
+    result = await db.execute(select(User).where(User.telegram_id == tg_user.id))
+    user = result.scalar_one_or_none()
+    if user:
+        user.username = tg_user.username or user.username
+        user.first_name = tg_user.first_name or user.first_name
+        user.last_name = tg_user.last_name or user.last_name
+        user.language_code = getattr(tg_user, "language_code", None) or user.language_code
+        user.is_premium = bool(getattr(tg_user, "is_premium", False) or user.is_premium)
+        return user
+    user = User(
+        telegram_id=tg_user.id,
+        username=tg_user.username,
+        first_name=tg_user.first_name,
+        last_name=tg_user.last_name,
+        language_code=getattr(tg_user, "language_code", None),
+        is_premium=bool(getattr(tg_user, "is_premium", False)),
+        role=UserRole.USER,
+    )
+    db.add(user)
+    return user
+
+
+def normalize_phone(raw: str) -> str:
+    return re.sub(r"[\s\-()]", "", (raw or "").strip())
+
+
+def is_plausible_phone(raw: str) -> bool:
+    if not raw or not PHONE_RE.match(raw.strip()):
+        return False
+    digits = re.sub(r"\D", "", raw)
+    return 10 <= len(digits) <= 15
 
 
 def admin_main_menu() -> InlineKeyboardMarkup:
@@ -50,6 +96,15 @@ def cancel_keyboard() -> ReplyKeyboardMarkup:
 
 def remove_keyboard() -> ReplyKeyboardRemove:
     return ReplyKeyboardRemove()
+
+
+async def clear_stale_reply_keyboard(message) -> None:
+    """
+    Reply keyboard persists across inline edits.
+    Send-and-delete service message to force keyboard removal.
+    """
+    service_msg = await message.answer(".", reply_markup=ReplyKeyboardRemove())
+    await service_msg.delete()
 
 
 async def is_admin(user_id: int, db: AsyncSession) -> bool:

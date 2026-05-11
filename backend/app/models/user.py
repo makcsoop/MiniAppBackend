@@ -25,6 +25,7 @@ class User(Base):
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     blocked_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     blocked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    phone_number: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     last_seen: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

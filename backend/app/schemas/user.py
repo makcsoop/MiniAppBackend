@@ -15,6 +15,7 @@ class UserResponse(BaseModel):
     is_blocked: bool = False
     blocked_reason: Optional[str] = None
     blocked_at: Optional[datetime] = None
+    phone_number: Optional[str] = None
     created_at: datetime
     last_seen: datetime
 

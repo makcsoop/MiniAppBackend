@@ -25,3 +25,8 @@ class ProductForm(StatesGroup):
 
 class UserSearchForm(StatesGroup):
     query = State()
+
+
+class OnboardingForm(StatesGroup):
+    """Обычный пользователь: ожидание телефона после /start."""
+    waiting_phone = State()

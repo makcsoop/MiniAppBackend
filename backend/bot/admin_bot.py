@@ -6,8 +6,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.config import settings
+from bot.database import AsyncSessionLocal
 from bot.handlers import categories, products, start_menu, stats, users
-from bot.handlers.common import admin_main_menu
+from bot.handlers.common import admin_main_menu, ensure_admin, remove_keyboard
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
@@ -29,7 +30,12 @@ async def cancel_any_form(msg: Message, state: FSMContext):
     if not current_state:
         return
     await state.clear()
-    await msg.answer("Операция отменена.", reply_markup=admin_main_menu())
+    async with AsyncSessionLocal() as db:
+        is_admin_user = await ensure_admin(msg.from_user.id, db)
+    if is_admin_user:
+        await msg.answer("Операция отменена.", reply_markup=admin_main_menu())
+    else:
+        await msg.answer("Операция отменена.", reply_markup=remove_keyboard())
 
 
 async def main():

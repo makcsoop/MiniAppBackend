@@ -7,7 +7,7 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.orm import selectinload
 
 from bot.database import AsyncSessionLocal
-from bot.handlers.common import ensure_admin, form_keyboard, remove_keyboard, slugify
+from bot.handlers.common import clear_stale_reply_keyboard, ensure_admin, form_keyboard, remove_keyboard, slugify
 from bot.models import Category, Product, ProductStatus, ProductType
 from bot.states import ProductForm
 
@@ -15,6 +15,7 @@ router = Router()
 
 @router.callback_query(F.data == "admin:products")
 async def list_products(cb: CallbackQuery):
+    await clear_stale_reply_keyboard(cb.message)
     async with AsyncSessionLocal() as db:
         if not await ensure_admin(cb.from_user.id, db):
             await cb.answer("❌ Недостаточно прав", show_alert=True)

@@ -6,7 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, update, delete
 
 from bot.database import AsyncSessionLocal
-from bot.handlers.common import ensure_admin, form_keyboard, remove_keyboard, slugify
+from bot.handlers.common import clear_stale_reply_keyboard, ensure_admin, form_keyboard, remove_keyboard, slugify
 from bot.models import Category
 from bot.states import CategoryForm
 
@@ -14,6 +14,7 @@ router = Router()
 
 @router.callback_query(F.data == "admin:categories")
 async def list_categories(cb: CallbackQuery):
+    await clear_stale_reply_keyboard(cb.message)
     async with AsyncSessionLocal() as db:
         if not await ensure_admin(cb.from_user.id, db):
             await cb.answer("❌ Недостаточно прав", show_alert=True)

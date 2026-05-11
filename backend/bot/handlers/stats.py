@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
 
 from bot.database import AsyncSessionLocal
-from bot.handlers.common import ensure_admin
+from bot.handlers.common import clear_stale_reply_keyboard, ensure_admin
 from bot.models import User, Booking, Category, Product, ProductStatus
 
 router = Router()
@@ -12,6 +12,7 @@ router = Router()
 
 @router.callback_query(F.data == "admin:stats")
 async def show_stats(cb: CallbackQuery):
+    await clear_stale_reply_keyboard(cb.message)
     async with AsyncSessionLocal() as db:
         if not await ensure_admin(cb.from_user.id, db):
             await cb.answer("❌ Недостаточно прав", show_alert=True)
