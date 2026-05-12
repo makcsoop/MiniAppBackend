@@ -10,5 +10,6 @@ from .category import Category
 from .product import Product
 from .booking import Booking
 from .payment import Payment
+from .car import CarModel, CarBrand
 
-__all__ = ["Base", "User", "Category", "Product", "Booking", "Payment"]
+__all__ = ["Base", "User", "Category", "Product", "Booking", "Payment", "CarBrand", "CarModel"]
