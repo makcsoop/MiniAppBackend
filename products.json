@@ -119,3 +119,12 @@
       "updated_at": "2026-05-01T21:53:03.541Z"
     }
   ]
+
+  body: JSON.stringify(
+    data: {
+      booking_id: booking_id,
+      amount: amount,
+      currency- currency,
+      method: method,
+      description: description }
+),

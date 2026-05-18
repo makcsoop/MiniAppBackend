@@ -4,9 +4,8 @@ from app.main import app
 from app.config import settings
 from generate_test_init_data import generate_test_init_data
 
-@pytest.mark.asyncio(loop_scope="function")  # ← Явно указываем scope для pytest-asyncio
+@pytest.mark.asyncio(loop_scope="function")
 async def test_verify_user_success():
-    # Используем явный transport для ASGI
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         init_data = generate_test_init_data(settings.TELEGRAM_BOT_TOKEN, 999999)

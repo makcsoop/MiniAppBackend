@@ -1,6 +1,7 @@
 # app/routers/booking.py
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional, List
 from datetime import datetime
 from app.dependencies import get_db_session, get_current_user
@@ -20,6 +21,28 @@ def get_booking_service(request: Request, db: AsyncSession = Depends(get_db_sess
     """Factory для BookingService — берёт календарь из app.state"""
     calendar = getattr(request.app.state, "yandex_calendar", None)
     return BookingService(db=db, calendar_service=calendar)
+
+
+@router.get("/history", response_model=List[BookingResponse])
+async def get_user_booking_history(
+    status: Optional[BookingStatus] = Query(None, description="Фильтр по статусу: PENDING, CONFIRMED, CANCELLED, COMPLETED"),
+    limit: int = Query(20, ge=1, le=50, description="Количество записей"),
+    offset: int = Query(0, ge=0, description="Смещение"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Получить историю бронирований текущего пользователя"""
+    query = (
+        select(Booking)
+        .where(Booking.user_id == current_user.id)
+        .order_by(Booking.created_at.desc())
+    )
+
+    if status:
+        query = query.where(Booking.status == status)
+
+    result = await db.execute(query.offset(offset).limit(limit))
+    return result.scalars().all()
 
 
 @router.get("/slots", response_model=List[AvailableSlotResponse])
