@@ -17,3 +17,4 @@ caldav
 psycopg2-binary>=2.9.9
 aiogram>=3.3.0
 yookassa>=3.3.0
+vobject>=0.9.7

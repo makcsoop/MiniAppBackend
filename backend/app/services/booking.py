@@ -26,78 +26,64 @@ class BookingService:
         timezone_str: str = "Europe/Moscow",
         buffer_minutes: int = 15
     ) -> List[datetime]:
-        """Получить список доступных слотов для бронирования"""
+        """Получить список доступных слотов (только будущие, naive в Moscow)"""
         import pytz
+        from sqlalchemy import select
         
-        # 👇 ГАРАНТИРОВАННО определяем duration в начале метода
-        duration: int = slot_duration_minutes if slot_duration_minutes else 60
-        
-        # 1. Если указан product_id — пробуем получить длительность из продукта
-        if product_id:
-            product = await self.db.get(Product, product_id)
-            if product and hasattr(product, 'duration_minutes') and product.duration_minutes:
-                duration = product.duration_minutes
-        
-        # 👇 Конвертация дат: любая входящая дата → наивная в нужном таймзоне
         tz = pytz.timezone(timezone_str)
+        duration = slot_duration_minutes or 60
         
-        def to_naive_local(dt: datetime) -> datetime:
-            """Приводит datetime к наивному в указанном таймзоне"""
+        # 🔑 Хелпер: любой datetime -> naive в целевой таймзоне
+        def to_naive(dt: datetime) -> datetime:
             if dt.tzinfo is not None:
-                dt = dt.astimezone(tz).replace(tzinfo=None)
+                return dt.astimezone(tz).replace(tzinfo=None)
             return dt
         
-        start_date = to_naive_local(start_date)
-        end_date = to_naive_local(end_date)
+        start_naive = to_naive(start_date)
+        end_naive = to_naive(end_date)
+        now_naive = datetime.now(tz).replace(tzinfo=None)
         
-        # 2. Получаем занятые слоты из БД
-        booked = await self._get_booked_intervals(
-            product_id=product_id,
-            start=start_date,
-            end=end_date,
-            exclude_statuses=[BookingStatus.CANCELLED]
+        # Если начало запроса в прошлом, сдвигаем на текущий момент
+        if start_naive < now_naive:
+            start_naive = now_naive
+        if start_naive >= end_naive:
+            return []
+        
+        # 📥 Запрос занятых интервалов из БД
+        query = select(Booking.start_time, Booking.end_time).where(
+            Booking.start_time < end_naive,
+            Booking.end_time > start_naive,
+            Booking.status.not_in([BookingStatus.CANCELLED])
         )
+        if product_id:
+            query = query.where(Booking.product_id == product_id)
+            
+        result = await self.db.execute(query)
+        # Преобразуем результаты БД в naive
+        booked = [(to_naive(s), to_naive(e)) for s, e in result.all()]
         
-        # 3. Если подключен Яндекс.Календарь — добавляем события
+        # 📅 Календарь (если подключен)
         if self.calendar:
-            calendar_booked = await asyncio.to_thread(
-                self.calendar.get_busy_intervals,
-                start_date,
-                end_date
-            )
-            booked.extend(calendar_booked)
+            try:
+                cal_booked = await asyncio.to_thread(
+                    self.calendar.get_busy_intervals, start_naive, end_naive
+                )
+                booked.extend([(to_naive(s), to_naive(e)) for s, e in cal_booked])
+            except Exception as e:
+                print(f"⚠️ Calendar error: {e}")
         
-        # 4. Генерируем доступные слоты
-        return generate_available_slots(
-            start_date=start_date,
-            end_date=end_date,
-            slot_duration_minutes=duration,  # 👈 Теперь точно определена
+        # 🎯 Генерация слотов
+        slots = generate_available_slots(
+            start_date=start_naive,
+            end_date=end_naive,
+            slot_duration_minutes=duration,
             booked_slots=booked,
             timezone_str=timezone_str,
             buffer_minutes=buffer_minutes
         )
-
-    async def _get_booked_intervals(
-        self,
-        product_id: Optional[int],
-        start: datetime,
-        end: datetime,
-        exclude_statuses: Optional[List[BookingStatus]] = None
-    ) -> List[Tuple[datetime, datetime]]:
-        """Получить список занятых интервалов из БД"""
-        exclude_statuses = exclude_statuses or [BookingStatus.CANCELLED]
         
-        query = select(Booking.start_time, Booking.end_time).where(
-            Booking.start_time < end,
-            Booking.end_time > start,
-            Booking.status.not_in(exclude_statuses)
-        )
-        
-        if product_id:
-            query = query.where(Booking.product_id == product_id)
-        
-        result = await self.db.execute(query)
-        return result.all()
+        # ✅ Фильтр: только будущие слоты (сравниваем naive >= naive)
+        return [s for s in slots if s >= now_naive]
 
     async def create_booking(
         self,
