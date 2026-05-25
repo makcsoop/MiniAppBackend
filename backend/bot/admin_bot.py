@@ -7,7 +7,7 @@ from aiogram.types import Message
 
 from bot.config import settings
 from bot.database import AsyncSessionLocal
-from bot.handlers import categories, products, start_menu, stats, users
+from bot.handlers import brands, car_models, categories, products, start_menu, stats, users
 from bot.handlers.common import admin_main_menu, ensure_admin, remove_keyboard
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
@@ -21,6 +21,8 @@ dp.include_router(start_menu.router)
 dp.include_router(users.router)
 dp.include_router(categories.router)
 dp.include_router(products.router)
+dp.include_router(brands.router)
+dp.include_router(car_models.router)
 dp.include_router(stats.router)
 
 

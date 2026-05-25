@@ -23,6 +23,17 @@ class ProductForm(StatesGroup):
     sort_order = State()
 
 
+class BrandForm(StatesGroup):
+    name = State()
+    slug = State()
+
+
+class CarModelForm(StatesGroup):
+    name = State()
+    slug = State()
+    brand_id = State()
+
+
 class UserSearchForm(StatesGroup):
     query = State()
 

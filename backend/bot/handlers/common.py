@@ -73,6 +73,8 @@ def admin_main_menu() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="👥 Пользователи", callback_data="admin:users"))
     builder.row(InlineKeyboardButton(text="📁 Категории", callback_data="admin:categories"))
     builder.row(InlineKeyboardButton(text="🛍️ Услуги", callback_data="admin:products"))
+    builder.row(InlineKeyboardButton(text="🚗 Марки авто", callback_data="admin:brands"))
+    builder.row(InlineKeyboardButton(text="🔧 Модели авто", callback_data="admin:models"))
     builder.row(InlineKeyboardButton(text="📊 Статистика", callback_data="admin:stats"))
     builder.row(InlineKeyboardButton(text="🔄 Обновить", callback_data="admin:refresh"))
     return builder.as_markup()

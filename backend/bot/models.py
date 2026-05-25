@@ -103,3 +103,28 @@ class Booking(Base):
     yandex_calendar_id: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class CarBrand(Base):
+    __tablename__ = "car_brands"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now(), onupdate=func.now())
+
+    models: Mapped[list["CarModel"]] = relationship(back_populates="brand", cascade="all, delete-orphan")
+
+
+class CarModel(Base):
+    __tablename__ = "car_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("car_brands.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, server_default=func.now(), onupdate=func.now())
+
+    brand: Mapped["CarBrand"] = relationship(back_populates="models")
