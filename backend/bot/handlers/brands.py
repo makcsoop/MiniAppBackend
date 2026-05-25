@@ -45,7 +45,7 @@ async def start_create_brand(cb: CallbackQuery, state: FSMContext):
             return
     await state.set_state(BrandForm.name)
     await state.update_data(editing_brand_id=None)
-    await cb.message.answer("Введите название марки:", reply_markup=form_keyboard(["🔙 Отмена"]))
+    await cb.message.answer("Введите название марки:", reply_markup=form_keyboard())
     await cb.answer()
 
 

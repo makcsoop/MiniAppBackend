@@ -14,46 +14,65 @@ from bot.states import CarModelForm
 router = Router()
 
 
-async def _list_models_message(cb: CallbackQuery, brand_id: int | None = None, title: str | None = None):
+@router.callback_query(F.data == "admin:models")
+async def models_pick_brand(cb: CallbackQuery):
+    """Сначала выбор марки, затем список моделей."""
+    await clear_stale_reply_keyboard(cb.message)
     async with AsyncSessionLocal() as db:
         if not await ensure_admin(cb.from_user.id, db):
             await cb.answer("❌ Недостаточно прав", show_alert=True)
-            return False
-        query = select(CarModel).options(selectinload(CarModel.brand)).order_by(CarModel.name)
-        if brand_id is not None:
-            query = query.where(CarModel.brand_id == brand_id)
-        models = (await db.execute(query.limit(50))).scalars().all()
-        brand = await db.get(CarBrand, brand_id) if brand_id else None
+            return
+        brands = (await db.execute(select(CarBrand).order_by(CarBrand.name))).scalars().all()
 
-    header = title or ("🔧 Модели авто" + (f" — {brand.name}" if brand else ""))
-    lines = [header, ""]
-    if not models:
-        lines.append("Пока нет моделей.")
-    for m in models:
-        brand_name = m.brand.name if m.brand else "?"
-        lines.append(f"• {brand_name} — {m.name} ({m.slug})")
+    lines = ["🔧 Модели авто", "", "Выберите марку:"]
+    if not brands:
+        lines.append("Сначала добавьте марку в разделе «🚗 Марки авто».")
 
     kb = InlineKeyboardBuilder()
-    for m in models:
-        label = f"{m.brand.name}: {m.name}" if m.brand and not brand_id else m.name
-        kb.row(InlineKeyboardButton(text=label[:60], callback_data=f"admin:carmodel:{m.id}"))
-    add_cb = f"admin:carmodel:add:{brand_id}" if brand_id else "admin:carmodel:add"
-    kb.row(InlineKeyboardButton(text="➕ Добавить", callback_data=add_cb))
-    back_cb = f"admin:brand:{brand_id}" if brand_id else "admin:models"
-    kb.row(InlineKeyboardButton(text="🔙 Назад", callback_data=back_cb))
+    for b in brands:
+        kb.row(InlineKeyboardButton(text=b.name, callback_data=f"admin:models:brand:{b.id}"))
+    kb.row(InlineKeyboardButton(text="🔙 Меню", callback_data="admin:menu"))
     await cb.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
     await cb.answer()
-    return True
-
-
-@router.callback_query(F.data == "admin:models")
-async def list_all_models(cb: CallbackQuery):
-    await clear_stale_reply_keyboard(cb.message)
-    await _list_models_message(cb)
 
 
 async def list_models_for_brand(cb: CallbackQuery, brand_id: int):
-    await _list_models_message(cb, brand_id=brand_id)
+    async with AsyncSessionLocal() as db:
+        if not await ensure_admin(cb.from_user.id, db):
+            await cb.answer("❌ Недостаточно прав", show_alert=True)
+            return
+        brand = await db.get(CarBrand, brand_id)
+        if not brand:
+            await cb.answer("❌ Марка не найдена", show_alert=True)
+            return
+        models = (
+            await db.execute(
+                select(CarModel)
+                .where(CarModel.brand_id == brand_id)
+                .order_by(CarModel.name)
+                .limit(50)
+            )
+        ).scalars().all()
+
+    lines = [f"🔧 Модели — {brand.name}", ""]
+    if not models:
+        lines.append("Пока нет моделей для этой марки.")
+    for m in models:
+        lines.append(f"• {m.name} ({m.slug})")
+
+    kb = InlineKeyboardBuilder()
+    for m in models:
+        kb.row(InlineKeyboardButton(text=m.name[:60], callback_data=f"admin:carmodel:{m.id}"))
+    kb.row(InlineKeyboardButton(text="➕ Добавить", callback_data=f"admin:carmodel:add:{brand_id}"))
+    kb.row(InlineKeyboardButton(text="🔙 К выбору марки", callback_data="admin:models"))
+    await cb.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("admin:models:brand:"))
+async def models_for_brand(cb: CallbackQuery):
+    brand_id = int(cb.data.split(":")[-1])
+    await list_models_for_brand(cb, brand_id)
 
 
 @router.callback_query(F.data.startswith("admin:brand:models:"))
@@ -62,22 +81,21 @@ async def brand_models_list(cb: CallbackQuery):
     await list_models_for_brand(cb, brand_id)
 
 
-@router.callback_query(F.data.startswith("admin:carmodel:add"))
+@router.callback_query(F.data.startswith("admin:carmodel:add:"))
 async def start_create_model(cb: CallbackQuery, state: FSMContext):
-    parts = cb.data.split(":")
-    preset_brand_id = int(parts[-1]) if len(parts) == 4 and parts[-1].isdigit() else None
+    preset_brand_id = int(cb.data.split(":")[-1])
 
     async with AsyncSessionLocal() as db:
         if not await ensure_admin(cb.from_user.id, db):
             await cb.answer("❌ Недостаточно прав", show_alert=True)
             return
-        if preset_brand_id and not await db.get(CarBrand, preset_brand_id):
+        if not await db.get(CarBrand, preset_brand_id):
             await cb.answer("❌ Марка не найдена", show_alert=True)
             return
 
     await state.set_state(CarModelForm.name)
     await state.update_data(editing_model_id=None, brand_id=preset_brand_id)
-    await cb.message.answer("Название модели:", reply_markup=form_keyboard(["🔙 Отмена"]))
+    await cb.message.answer("Название модели:", reply_markup=form_keyboard())
     await cb.answer()
 
 
@@ -139,7 +157,7 @@ async def model_slug(msg: Message, state: FSMContext):
     await msg.answer(
         "ID марки (число, или `.` чтобы оставить текущую):\n"
         + "\n".join(f"{b.id}: {b.name}" for b in brands),
-        reply_markup=form_keyboard(hints + ["."]),
+        reply_markup=form_keyboard(hints + ["."], include_cancel=True),
     )
 
 
@@ -217,13 +235,12 @@ async def model_actions_cb(cb: CallbackQuery):
         kb.row(InlineKeyboardButton(text="🗑 Удалить", callback_data=f"admin:carmodel:del:{mid}"))
         kb.row(
             InlineKeyboardButton(
-                text="🔙 К марке",
-                callback_data=f"admin:brand:models:{model.brand_id}",
+                text="🔙 Назад",
+                callback_data=f"admin:models:brand:{model.brand_id}",
             )
         )
-        kb.row(InlineKeyboardButton(text="🔙 Все модели", callback_data="admin:models"))
         await cb.message.edit_text(
-            f"🔧 {model.name}\nSlug: {model.slug}\nМарка: {brand_name} (id: {model.brand_id})",
+            f"🔧 {model.name}\nSlug: {model.slug}\nМарка: {brand_name}",
             reply_markup=kb.as_markup(),
         )
         await cb.answer()
@@ -239,7 +256,7 @@ async def model_actions_cb(cb: CallbackQuery):
         if brand_id:
             await list_models_for_brand(cb, brand_id)
         else:
-            await list_all_models(cb)
+            await models_pick_brand(cb)
         return
 
     await cb.answer()
