@@ -1,6 +1,7 @@
 # bot/handlers/start_menu.py
 from aiogram import Router, F
 from aiogram.filters import CommandStart
+from aiogram.filters.state import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -93,7 +94,7 @@ async def show_menu(cb: CallbackQuery):
     await cb.answer()
 
 
-@router.message(F.contact)
+@router.message(StateFilter("*"), F.contact)
 async def handle_shared_contact(msg: Message, state: FSMContext):
     """Сохранение телефона из контакта (onboarding или повторная отправка)."""
     contact = msg.contact
