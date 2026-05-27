@@ -1,5 +1,5 @@
 # bot/models.py
-from sqlalchemy import String, Integer, Boolean, DateTime, Enum, Float, ForeignKey, func, Text, ARRAY
+from sqlalchemy import String, Integer, Boolean, DateTime, Enum, Float, ForeignKey, func, Text, ARRAY, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import datetime
@@ -35,7 +35,7 @@ class User(Base):
     __tablename__ = "users"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str | None] = mapped_column(String(100))
     first_name: Mapped[str | None] = mapped_column(String(100))
     last_name: Mapped[str | None] = mapped_column(String(100))
